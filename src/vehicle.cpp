@@ -10,7 +10,7 @@
 /**
  * Initializes Vehicle
  */
-Vehicle::Vehicle(double d, double s, double v, double a) {
+Vehicle::Vehicle(double lane, double s, double v, double a) {
 
   this->lane = lane;
   this->s = s;
@@ -69,24 +69,6 @@ void Vehicle::configure(double max_speed, int lanes_available, double max_accele
   target_speed = max_speed;
   this->lanes_available = lanes_available;
   this->max_acceleration = max_acceleration;
-}
-
-string Vehicle::display() {
-
-  ostringstream oss;
-
-  oss << "s:    " << this->s << "\n";
-  oss << "lane: " << this->lane << "\n";
-  oss << "v:    " << this->v << "\n";
-  oss << "a:    " << this->a << "\n";
-
-  return oss.str();
-}
-
-void Vehicle::increment(int dt = 1) {
-
-  this->s += this->v * dt;
-  this->v += this->a * dt;
 }
 
 vector<double> Vehicle::state_at(double t) {
@@ -166,22 +148,28 @@ void Vehicle::realize_constant_speed() {
   a = 0;
 }
 
-double Vehicle::get_max_accel_for_lane(map<int, vector<vector<double>>> predictions, double lane, double s) {
-
-  double delta_v_til_target = target_speed - v;
-  double max_acc = min(max_acceleration, delta_v_til_target);
-
-
+vector<vector<vector<double>>> Vehicle::get_cars_in_front( const map<int, vector<vector<double>>>& predictions,
+                                                           double lane, double s) {
   vector<vector<vector<double>>> in_front;
   for(auto it : predictions)
   {
     vector<vector<double>> v = it.second;
 
-    if((v[0][0] == lane) && (v[0][1] > s))
+    if(fabs(v[0][0] - lane) < 0.2 && (v[0][1] > s))
     {
-        in_front.push_back(v);
+      in_front.push_back(v);
     }
   }
+  return in_front;
+}
+
+double Vehicle::get_max_accel_for_lane(map<int,vector<vector<double>>> predictions, double lane, double s) {
+
+  double delta_v_til_target = target_speed - v;
+  double max_acc = min(max_acceleration, delta_v_til_target);
+
+
+  vector<vector<vector<double>>> in_front = get_cars_in_front(predictions, lane, s);
 
   if(!in_front.empty())
   {
@@ -203,13 +191,15 @@ double Vehicle::get_max_accel_for_lane(map<int, vector<vector<double>>> predicti
     max_acc = min(max_acc, available_room);
   }
 
+  if (max_acc < 0)
+    cout << "Slowing down" << max_acc << endl;
+
   return max_acc;
 
 }
 
 void Vehicle::realize_keep_lane(map<int,vector< vector<double>>> predictions) {
   this->a = get_max_accel_for_lane(std::move(predictions), this->lane, this->s);
-  this->v += this->a;
 }
 
 void Vehicle::realize_lane_change(map<int,vector< vector<double>>> predictions, string direction) {
@@ -289,12 +279,12 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double>>> predictio
   }
 }
 
-vector<vector<double>> Vehicle::generate_predictions(int horizon) {
+vector<vector<double>> Vehicle::generate_predictions(int horizon, double time_step = 1.0) {
 
   vector<vector<double> > predictions;
   for( int i = 0; i < horizon; i++)
   {
-    vector<double> check1 = state_at(i);
+    vector<double> check1 = state_at(i * time_step);
     vector<double> lane_s = {check1[0], check1[1]};
     predictions.push_back(lane_s);
   }

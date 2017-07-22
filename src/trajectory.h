@@ -15,6 +15,9 @@ class Trajectory {
 public:
     Trajectory() : is_running(false) {}
 
+    void reset(){
+        is_running = false;
+    }
     void generate_trajectory(vector<double> s, vector<double> d, vector<double> goal_s, vector<double> goal_d, double T) {
       time = 0;
       end_time = T;

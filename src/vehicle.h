@@ -23,7 +23,7 @@ public:
 
     int L = 1;
 
-    int preferred_buffer = 20; // impacts "keep lane" behavior.
+    int preferred_buffer = 10; // impacts "keep lane" behavior.
 
     double lane;
 
@@ -77,8 +77,10 @@ public:
 
     void realize_prep_lane_change(map<int,vector< vector<double>>> predictions, string direction);
 
-    vector<vector<double>> generate_predictions(int horizon);
+    vector<vector<double>> generate_predictions(int horizon, double time_step);
 
+    vector<vector<vector<double>>> get_cars_in_front( const map<int, vector<vector<double>>>& predictions,
+                                                               double lane, double s);
 };
 
 #endif

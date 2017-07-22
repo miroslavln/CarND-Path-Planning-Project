@@ -153,14 +153,19 @@ double ms_to_mph(double ms) {
   return ms * (3600.0 / 1600.0);
 }
 
+double mph_to_ms(double mph) {
+  return mph * 0.44704;
+}
+
 double get_lane_number(double pos_d) {
   int lane = 0;
-  if (8.0 > pos_d && pos_d < 4.0)
+  if (4.0 < pos_d && pos_d < 8.0)
     lane = 1;
-  else if (12 > pos_d && pos_d < 8.0)
+  else if (8.0 < pos_d && pos_d < 12.0)
     lane = 2;
   return lane;
 }
+
 int main() {
   uWS::Hub h;
 
@@ -261,6 +266,9 @@ int main() {
               pos_s = end_path_s;
               pos_d = end_path_d;
             }
+            else{
+              trajectory.reset();
+            }
 
             for (int i = 0; i < path_size; i++) {
               next_x_vals.push_back(previous_path_x[i]);
@@ -271,12 +279,38 @@ int main() {
 
               if (trajectory.is_complete())
               {
-                  double horizon = 4.0;
-                  vector<double> cur_s = {pos_s, car_speed * 0.44704, 0.0};
-                  vector<double> cur_d = {pos_d, 0.0 , 0.0 };
-                  double goal_s = pos_s + horizon*45*0.44704;
-                  double goal_d = fmod(pos_d+4.0, 12.0);
-                  trajectory.generate_trajectory(cur_s, cur_d, {goal_s, 45 * 0.44704, 0}, {goal_d, 0, 0}, horizon);
+                  double horizon = 3.0;
+                  map<int,vector<vector<double>>> predictions;
+                  for (auto &car:sensor_fusion){
+                    int id = car[0];
+                    double x = car[1];
+                    double y = car[2];
+                    double vx = car[3];
+                    double vy = car[4];
+                    double s = car[5];
+                    double d = car[6];
+                    double speed = sqrt(vx*vx - vy*vy);
+                    Vehicle v(get_lane_number(d), s, speed, 0);
+                    predictions[id] = v.generate_predictions(2*int(horizon), 1.0);
+                  }
+
+                  double desired_speed = 45;
+
+                  Vehicle v(get_lane_number(pos_d), car_s, mph_to_ms(car_speed), 0);
+
+                  v.configure(mph_to_ms(desired_speed), 3, 5);
+                  v.update_state(predictions);
+                  v.realize_state(predictions);
+
+                  vector<double> lsva = v.state_at(horizon);
+
+                  double goal_lane = lsva[0];
+                  double goal_s = lsva[1];
+                  double goal_v = lsva[2];
+                  double goal_a = lsva[3];
+                  double goal_d = fmod(goal_lane*4 + 2, 12);
+                  trajectory.generate_trajectory({pos_s, mph_to_ms(car_speed), 0.0}, {pos_d, 0.0 , 0.0 },
+                                                 {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
               }
 
               auto sd = trajectory.update(0.02);
@@ -324,6 +358,7 @@ int main() {
 
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
       std::cout << "Connected!!!" << std::endl;
+
   });
 
   h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
