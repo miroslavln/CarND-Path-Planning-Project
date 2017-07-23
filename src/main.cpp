@@ -158,8 +158,10 @@ double mph_to_ms(double mph) {
 }
 
 double get_lane_number(double pos_d) {
-  int lane = 0;
-  if (4.0 < pos_d && pos_d < 8.0)
+  int lane = -10;
+  if (0.0 < pos_d && pos_d < 4.0)
+      lane = 0;
+  else if (4.0 < pos_d && pos_d < 8.0)
     lane = 1;
   else if (8.0 < pos_d && pos_d < 12.0)
     lane = 2;
@@ -203,144 +205,152 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
   Trajectory trajectory;
+  Vehicle v(0,0,0,0);
 
-  h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy, &max_s, &trajectory](
-      uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-      uWS::OpCode opCode) {
-      // "42" at the start of the message means there's a websocket message event.
-      // The 4 signifies a websocket message
-      // The 2 signifies a websocket event
-      //auto sdata = string(data).substr(0, length);
-      //cout << sdata << endl;
-      if (length && length > 2 && data[0] == '4' && data[1] == '2') {
+  h.onMessage(
+      [&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy, &max_s, &trajectory, &v](
+          uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+          uWS::OpCode opCode) {
+          // "42" at the start of the message means there's a websocket message event.
+          // The 4 signifies a websocket message
+          // The 2 signifies a websocket event
+          //auto sdata = string(data).substr(0, length);
+          //cout << sdata << endl;
+          if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
-        auto s = hasData(data);
+            auto s = hasData(data);
 
-        if (s != "") {
-          auto j = json::parse(s);
+            if (s != "") {
+              auto j = json::parse(s);
 
-          string event = j[0].get<string>();
+              string event = j[0].get<string>();
 
-          if (event == "telemetry") {
-            // j[1] is the data JSON object
+              if (event == "telemetry") {
+                // j[1] is the data JSON object
 
-            // Main car's localization Data
-            double car_x = j[1]["x"];
-            double car_y = j[1]["y"];
-            double car_s = j[1]["s"];
-            double car_d = j[1]["d"];
-            double car_yaw = j[1]["yaw"];
-            double car_speed = j[1]["speed"];
+                // Main car's localization Data
+                double car_x = j[1]["x"];
+                double car_y = j[1]["y"];
+                double car_s = j[1]["s"];
+                double car_d = j[1]["d"];
+                double car_yaw = j[1]["yaw"];
+                double car_speed = j[1]["speed"];
 
-            // Previous path data given to the Planner
-            auto previous_path_x = j[1]["previous_path_x"];
-            auto previous_path_y = j[1]["previous_path_y"];
-            // Previous path's end s and d values
-            double end_path_s = j[1]["end_path_s"];
-            double end_path_d = j[1]["end_path_d"];
+                // Previous path data given to the Planner
+                auto previous_path_x = j[1]["previous_path_x"];
+                auto previous_path_y = j[1]["previous_path_y"];
+                // Previous path's end s and d values
+                double end_path_s = j[1]["end_path_s"];
+                double end_path_d = j[1]["end_path_d"];
 
-            // Sensor Fusion Data, a list of all other cars on the same side of the road.
-            auto sensor_fusion = j[1]["sensor_fusion"];
+                // Sensor Fusion Data, a list of all other cars on the same side of the road.
+                auto sensor_fusion = j[1]["sensor_fusion"];
 
-            json msgJson;
+                json msgJson;
 
-            vector<double> next_x_vals;
-            vector<double> next_y_vals;
+                vector<double> next_x_vals;
+                vector<double> next_y_vals;
 
-            tk::spline spline_x, spline_y, spline_dx, spline_dy;
-            spline_x.set_points(map_waypoints_s, map_waypoints_x);
-            spline_y.set_points(map_waypoints_s, map_waypoints_y);
-            spline_dx.set_points(map_waypoints_s, map_waypoints_dx);
-            spline_dy.set_points(map_waypoints_s, map_waypoints_dy);
+                tk::spline spline_x, spline_y, spline_dx, spline_dy;
+                spline_x.set_points(map_waypoints_s, map_waypoints_x);
+                spline_y.set_points(map_waypoints_s, map_waypoints_y);
+                spline_dx.set_points(map_waypoints_s, map_waypoints_dx);
+                spline_dy.set_points(map_waypoints_s, map_waypoints_dy);
 
-            double pos_x = car_x;
-            double pos_y = car_y;
-            double pos_s = car_s;
-            double pos_d = car_d;
+                double pos_x = car_x;
+                double pos_y = car_y;
+                double pos_s = car_s;
+                double pos_d = car_d;
+                double speed = mph_to_ms(car_speed);
 
-            int path_size = previous_path_x.size();
+                int path_size = previous_path_x.size();
 
-            if (path_size > 0) {
-              pos_x = previous_path_x[path_size - 1];
-              pos_y = previous_path_y[path_size - 1];
-              pos_s = end_path_s;
-              pos_d = end_path_d;
-            }
-            else{
-              trajectory.reset();
-            }
+                if (path_size > 0) {
+                  pos_x = previous_path_x[path_size - 1];
+                  pos_y = previous_path_y[path_size - 1];
+                  pos_s = end_path_s;
+                  pos_d = end_path_d;
 
-            for (int i = 0; i < path_size; i++) {
-              next_x_vals.push_back(previous_path_x[i]);
-              next_y_vals.push_back(previous_path_y[i]);
-            }
+                  double pos_x2 = previous_path_x[path_size - 2];
+                  double pos_y2 = previous_path_y[path_size - 2];
+                  speed = distance(pos_x, pos_y, pos_x2, pos_y2) / 0.02;
 
-            for (int i = 0; i < 50 - path_size; i++) {
+                } else {
+                  trajectory.reset();
+                }
 
-              if (trajectory.is_complete())
-              {
-                  double horizon = 3.0;
-                  map<int,vector<vector<double>>> predictions;
-                  for (auto &car:sensor_fusion){
-                    int id = car[0];
-                    double x = car[1];
-                    double y = car[2];
-                    double vx = car[3];
-                    double vy = car[4];
-                    double s = car[5];
-                    double d = car[6];
-                    double speed = sqrt(vx*vx - vy*vy);
-                    Vehicle v(get_lane_number(d), s, speed, 0);
-                    predictions[id] = v.generate_predictions(2*int(horizon), 1.0);
+                for (int i = 0; i < path_size; i++) {
+                  next_x_vals.push_back(previous_path_x[i]);
+                  next_y_vals.push_back(previous_path_y[i]);
+                }
+
+                for (int i = 0; i < 50 - path_size; i++) {
+
+                  if (trajectory.is_complete()) {
+                    double horizon = 1.0;
+                    map<int, vector<vector<double>>> predictions;
+                    for (auto &car:sensor_fusion) {
+                      int id = car[0];
+                      double x = car[1];
+                      double y = car[2];
+                      double vx = car[3];
+                      double vy = car[4];
+                      double v_s = car[5];
+                      double v_d = car[6];
+                      double v_speed = sqrt(vx * vx + vy * vy);
+                      Vehicle other(get_lane_number(v_d), v_s, v_speed, 0);
+                      predictions[id] = other.generate_predictions(10, horizon, horizon);
+                    }
+
+                    const double desired_speed = 45;
+
+                    v = Vehicle(get_lane_number(pos_d), pos_s, speed, 0);
+                    v.configure(mph_to_ms(desired_speed), 3, 7);
+
+                    v.update_state(predictions);
+                    v.realize_state(predictions);
+
+                    vector<double> lsva = v.state_at(horizon);
+
+                    double goal_lane = lsva[0];
+                    double goal_d = fmod(goal_lane * 4 + 2, 12);
+
+                    double goal_s = lsva[1];
+                    double goal_v = lsva[2];
+                    double goal_a = lsva[3];
+                    cout << goal_a<<endl;
+                    trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
+                                                   {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
                   }
 
-                  double desired_speed = 45;
+                  auto sd = trajectory.update(0.02);
+                  pos_s = sd[0];
+                  pos_d = 6.0;//sd[1];
 
-                  Vehicle v(get_lane_number(pos_d), car_s, mph_to_ms(car_speed), 0);
+                  pos_x = spline_x(pos_s) + pos_d * spline_dx(pos_s);
+                  pos_y = spline_y(pos_s) + pos_d * spline_dy(pos_s);
 
-                  v.configure(mph_to_ms(desired_speed), 3, 5);
-                  v.update_state(predictions);
-                  v.realize_state(predictions);
+                  next_x_vals.push_back(pos_x);
+                  next_y_vals.push_back(pos_y);
+                }
 
-                  vector<double> lsva = v.state_at(horizon);
+                // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+                msgJson["next_x"] = next_x_vals;
+                msgJson["next_y"] = next_y_vals;
 
-                  double goal_lane = lsva[0];
-                  double goal_s = lsva[1];
-                  double goal_v = lsva[2];
-                  double goal_a = lsva[3];
-                  double goal_d = fmod(goal_lane*4 + 2, 12);
-                  trajectory.generate_trajectory({pos_s, mph_to_ms(car_speed), 0.0}, {pos_d, 0.0 , 0.0 },
-                                                 {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
+                auto msg = "42[\"control\"," + msgJson.dump() + "]";
+
+                //this_thread::sleep_for(chrono::milliseconds(1000));
+                ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+
               }
-
-              auto sd = trajectory.update(0.02);
-              pos_s = sd[0];
-              pos_d = sd[1];
-
-              pos_x = spline_x(pos_s) + pos_d * spline_dx(pos_s);
-              pos_y = spline_y(pos_s) + pos_d * spline_dy(pos_s);
-
-              next_x_vals.push_back(pos_x);
-              next_y_vals.push_back(pos_y);
+            } else {
+              // Manual driving
+              std::string msg = "42[\"manual\",{}]";
+              ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
             }
-
-            // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-            msgJson["next_x"] = next_x_vals;
-            msgJson["next_y"] = next_y_vals;
-
-            auto msg = "42[\"control\"," + msgJson.dump() + "]";
-
-            //this_thread::sleep_for(chrono::milliseconds(1000));
-            ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-
           }
-        } else {
-          // Manual driving
-          std::string msg = "42[\"manual\",{}]";
-          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-        }
-      }
-  });
+      });
 
   // We don't need this since we're not using HTTP but if it's removed the
   // program

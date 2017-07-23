@@ -110,7 +110,7 @@ Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon) {
   return collider_temp;
 }
 
-void Vehicle::realize_state(map<int,vector<vector<double>>> predictions) {
+void Vehicle::realize_state(map<int, vector<vector<double>>> predictions) {
 
   /*
     Given a state, realize it by adjusting acceleration and lane.
@@ -155,7 +155,7 @@ vector<vector<vector<double>>> Vehicle::get_cars_in_front( const map<int, vector
   {
     vector<vector<double>> v = it.second;
 
-    if(fabs(v[0][0] - lane) < 0.2 && (v[0][1] > s))
+    if(fabs(v[0][0] - lane) < 0.5 && (v[0][1] > s))
     {
       in_front.push_back(v);
     }
@@ -168,7 +168,6 @@ double Vehicle::get_max_accel_for_lane(map<int,vector<vector<double>>> predictio
   double delta_v_til_target = target_speed - v;
   double max_acc = min(max_acceleration, delta_v_til_target);
 
-
   vector<vector<vector<double>>> in_front = get_cars_in_front(predictions, lane, s);
 
   if(!in_front.empty())
@@ -177,7 +176,7 @@ double Vehicle::get_max_accel_for_lane(map<int,vector<vector<double>>> predictio
     vector<vector<double>> leading = {};
 
     for (auto &car : in_front) {
-      if((car[0][1]-s) < min_s)
+      if((car[0][1] - s) < min_s)
       {
         min_s = (car[0][1]-s);
         leading = car;
@@ -188,11 +187,12 @@ double Vehicle::get_max_accel_for_lane(map<int,vector<vector<double>>> predictio
     double my_next = s + this->v;
     double separation_next = next_pos - my_next;
     double available_room = separation_next - preferred_buffer;
+    cout << "Available room " << available_room << " "<< this->v <<" "<< max_acc << endl;
     max_acc = min(max_acc, available_room);
   }
-
-  if (max_acc < 0)
-    cout << "Slowing down" << max_acc << endl;
+  else{
+    cout<< "no one in front !!!";
+  }
 
   return max_acc;
 
@@ -279,15 +279,16 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double>>> predictio
   }
 }
 
-vector<vector<double>> Vehicle::generate_predictions(int horizon, double time_step = 1.0) {
+vector<vector<double>> Vehicle::generate_predictions(int horizon, double time_step = 1.0, double start_time = 0.0) {
 
-  vector<vector<double> > predictions;
+  vector<vector<double>> predictions;
   for( int i = 0; i < horizon; i++)
   {
-    vector<double> check1 = state_at(i * time_step);
+    vector<double> check1 = state_at(start_time + i * time_step);
     vector<double> lane_s = {check1[0], check1[1]};
     predictions.push_back(lane_s);
   }
   return predictions;
 
 }
+
