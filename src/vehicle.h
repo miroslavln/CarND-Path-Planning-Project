@@ -77,10 +77,12 @@ public:
 
     void realize_prep_lane_change(map<int,vector< vector<double>>> predictions, string direction);
 
-    vector<vector<double>> generate_predictions(int horizon, double time_step, double start_time);
+    vector<vector<double>> generate_predictions(int horizon, double start_time);
 
     vector<vector<vector<double>>> get_cars_in_front( const map<int, vector<vector<double>>>& predictions,
                                                                double lane, double s);
+
+    vector<vector<double>> get_leading(double s, const vector<vector<vector<double>>> &in_front) const;
 };
 
 #endif

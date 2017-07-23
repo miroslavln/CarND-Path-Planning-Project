@@ -6,13 +6,19 @@
 #include <cmath>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/Dense"
+#include "spline.h"
 
 using namespace std;
+using namespace tk;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 class Trajectory {
 public:
+
+    double pos_d;
+    double pos_s;
+
     Trajectory() : is_running(false) {}
 
     void reset(){
@@ -24,23 +30,50 @@ public:
 
       is_running = true;
 
-      s_coeff = JMT(s, goal_s, T);
-      d_coeff = JMT(d, goal_d, T);
+      auto s_coeff = JMT(s, goal_s, T);
+      auto d_coeff = JMT(d, goal_d, T);
+
+      spline_s = get_smoothed(s_coeff, s[0], goal_s[0], T);
+      spline_d = get_smoothed(d_coeff, d[0], goal_d[0], T);
     }
 
-    vector<double> update(double dt) {
+    tk::spline get_smoothed(vector<double> coeff, double initial_pos, double end_pos, double T)
+    {
+        int intervals = 5;
+        vector<double> time;
+        vector<double> series;
+        time.push_back(0.0);
+      series.push_back(initial_pos);
+        for (int i = 1; i < intervals; i++)
+        {   double t = i * T/intervals;
+            double pos = evaluate_function(coeff, t);
+            time.push_back(t);
+            series.push_back(pos);
+        }
+
+      time.push_back(T);
+      series.push_back(end_pos);
+        spline res;
+      res.set_points(time, series);
+      return res;
+    }
+
+    void follow(double dt) {
       assert(is_running);
+
+      double prev_s = pos_s;
+      pos_s = spline_s(time);
+      pos_d = spline_d(time);
+
+      if (fabs(prev_s - pos_s) > 0.5)
+      {
+        printf("Speed exceeded %f /n", fabs(pos_s - prev_s));
+      }
       time += dt;
-
-      double pos_s = evaluate_function(s_coeff, time);
-      double pos_d = evaluate_function(d_coeff, time);
-
       if (fabs(end_time - time) < 0.5)
       {
         is_running = false;
       }
-
-      return {pos_s, pos_d};
     }
 
     double evaluate_function(vector<double> coeff, double t) {
@@ -107,8 +140,8 @@ private:
     double time;
     double end_time;
     bool is_running;
-    vector<double> s_coeff;
-    vector<double> d_coeff;
+    spline spline_s;
+    spline spline_d;
 };
 
 

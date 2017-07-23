@@ -268,8 +268,8 @@ int main() {
                 if (path_size > 0) {
                   pos_x = previous_path_x[path_size - 1];
                   pos_y = previous_path_y[path_size - 1];
-                  pos_s = end_path_s;
-                  pos_d = end_path_d;
+                  pos_s = trajectory.pos_s;
+                  pos_d = trajectory.pos_d;
 
                   double pos_x2 = previous_path_x[path_size - 2];
                   double pos_y2 = previous_path_y[path_size - 2];
@@ -299,33 +299,36 @@ int main() {
                       double v_d = car[6];
                       double v_speed = sqrt(vx * vx + vy * vy);
                       Vehicle other(get_lane_number(v_d), v_s, v_speed, 0);
-                      predictions[id] = other.generate_predictions(10, horizon, horizon);
+                      predictions[id] = other.generate_predictions(10, horizon);
                     }
 
                     const double desired_speed = 45;
 
                     v = Vehicle(get_lane_number(pos_d), pos_s, speed, 0);
-                    v.configure(mph_to_ms(desired_speed), 3, 7);
+                    v.configure(mph_to_ms(desired_speed), 3, 5);
 
                     v.update_state(predictions);
                     v.realize_state(predictions);
 
-                    vector<double> lsva = v.state_at(horizon);
+                    if (fabs(get_lane_number(pos_d) - v.lane)){
+                       horizon = 3.0;
+                    }
 
+                    vector<double> lsva = v.state_at(horizon);
                     double goal_lane = lsva[0];
                     double goal_d = fmod(goal_lane * 4 + 2, 12);
-
                     double goal_s = lsva[1];
                     double goal_v = lsva[2];
                     double goal_a = lsva[3];
-                    cout << goal_a<<endl;
+                    cout << "Goald_a "<<goal_a << endl;
+
                     trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
                                                    {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
                   }
 
-                  auto sd = trajectory.update(0.02);
-                  pos_s = sd[0];
-                  pos_d = 6.0;//sd[1];
+                  trajectory.follow(0.02);
+                  pos_s = trajectory.pos_s;
+                  pos_d = trajectory.pos_d;
 
                   pos_x = spline_x(pos_s) + pos_d * spline_dx(pos_s);
                   pos_y = spline_y(pos_s) + pos_d * spline_dy(pos_s);
