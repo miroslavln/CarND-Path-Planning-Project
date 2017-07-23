@@ -268,7 +268,7 @@ int main() {
                 if (path_size > 0) {
                   pos_x = previous_path_x[path_size - 1];
                   pos_y = previous_path_y[path_size - 1];
-                  pos_s = trajectory.pos_s;
+                  pos_s = fmod(trajectory.pos_s, max_s);
                   pos_d = trajectory.pos_d;
 
                   double pos_x2 = previous_path_x[path_size - 2];
@@ -287,7 +287,7 @@ int main() {
                 for (int i = 0; i < 50 - path_size; i++) {
 
                   if (trajectory.is_complete()) {
-                    double horizon = 1.0;
+                    double horizon = 1;
                     map<int, vector<vector<double>>> predictions;
                     for (auto &car:sensor_fusion) {
                       int id = car[0];
@@ -302,7 +302,7 @@ int main() {
                       predictions[id] = other.generate_predictions(10, horizon);
                     }
 
-                    const double desired_speed = 45;
+                    const double desired_speed = 100;
 
                     v = Vehicle(get_lane_number(pos_d), pos_s, speed, 0);
                     v.configure(mph_to_ms(desired_speed), 3, 5);
@@ -311,7 +311,7 @@ int main() {
                     v.realize_state(predictions);
 
                     if (fabs(get_lane_number(pos_d) - v.lane)){
-                       horizon = 3.0;
+                       horizon = 2.0;
                     }
 
                     vector<double> lsva = v.state_at(horizon);
@@ -320,14 +320,13 @@ int main() {
                     double goal_s = lsva[1];
                     double goal_v = lsva[2];
                     double goal_a = lsva[3];
-                    cout << "Goald_a "<<goal_a << endl;
 
                     trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
                                                    {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
                   }
 
                   trajectory.follow(0.02);
-                  pos_s = trajectory.pos_s;
+                  pos_s = fmod(trajectory.pos_s, max_s);
                   pos_d = trajectory.pos_d;
 
                   pos_x = spline_x(pos_s) + pos_d * spline_dx(pos_s);

@@ -67,7 +67,7 @@ public:
 
       if (fabs(prev_s - pos_s) > 0.5)
       {
-        printf("Speed exceeded %f /n", fabs(pos_s - prev_s));
+        //printf("Speed exceeded %f /n", fabs(pos_s - prev_s));
       }
       time += dt;
       if (fabs(end_time - time) < 0.5)

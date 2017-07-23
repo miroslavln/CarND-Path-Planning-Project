@@ -83,6 +83,10 @@ public:
                                                                double lane, double s);
 
     vector<vector<double>> get_leading(double s, const vector<vector<vector<double>>> &in_front) const;
+
+    bool will_collide_with_any(const vector<Vehicle> cars);
+
+    vector<Vehicle> get_cars_in_lane(const map<int, vector<vector<double>>> &predictions, double lane, double s);
 };
 
 #endif

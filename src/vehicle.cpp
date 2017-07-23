@@ -67,20 +67,44 @@ void Vehicle::update_state(map<int, vector<vector<double>>> predictions) {
         in_front = get_cars_in_front(predictions, this->lane+1, this->s);
         auto left_leading = get_leading(this->s, in_front);
         if (left_leading.empty() || left_leading[0][1] > current_leading[0][1]) {
-          state = "LCL";
-          current_leading = left_leading;
-        }
+          if (!will_collide_with_any(get_cars_in_lane(predictions, this->lane + 1, this->s)))
+          {
+            state = "LCL";
+            current_leading = left_leading;
+        }}
       }
 
       if (this->lane > 0.9) {
         in_front = get_cars_in_front(predictions, this->lane-1, this->s);
         auto right_leading = get_leading(this->s, in_front);
         if (right_leading.empty() || right_leading[0][1] > current_leading[0][1])
-          state = "LCR";
+          if (!will_collide_with_any(get_cars_in_lane(predictions, this->lane - 1, this->s))) {
+            state = "LCR";
+          }
       }
     }
   }
   cout << state << endl;
+}
+
+bool Vehicle::will_collide_with_any(const vector<Vehicle> cars){
+    bool res = false;
+    for (auto& car : cars){
+        res |= will_collide_with(car, 3.0).collision;
+    }
+  return res;
+}
+
+vector<Vehicle> Vehicle::get_cars_in_lane(const map<int, vector<vector<double>>>& predictions, double lane, double s){
+  vector<Vehicle> cars;
+  for (auto it : predictions) {
+    vector<vector<double>> v = it.second;
+
+    if (fabs(v[0][0] - lane) < 0.5 && (fabs(v[0][1] - s) < 20)) {
+        cars.emplace_back(v[0][0], v[0][1], v[0][2], 0);
+    }
+  }
+  return cars;
 }
 
 void Vehicle::configure(double max_speed, int lanes_available, double max_acceleration) {
@@ -108,9 +132,9 @@ bool Vehicle::collides_with(Vehicle other, double at_time) {
   /*
     Simple collision detection.
     */
-  vector<double> check1 = state_at(at_time);
-  vector<double> check2 = other.state_at(at_time);
-  return (check1[0] == check2[0]) && (abs(check1[1] - check2[1]) <= L);
+  vector<double> my_state = state_at(at_time);
+  vector<double> other_state = other.state_at(at_time);
+  return (fabs(my_state[0] - other_state[0]) < 4) && (fabs(my_state[1] - other_state[1]) <= L);
 }
 
 Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon) {
@@ -123,6 +147,7 @@ Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon) {
     if (collides_with(other, i)) {
       collider_temp.collision = true;
       collider_temp.time = i;
+      cout << "Possible collision detected"<<endl;
       return collider_temp;
     }
   }
