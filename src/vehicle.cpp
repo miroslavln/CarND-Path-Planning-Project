@@ -100,7 +100,7 @@ vector<Vehicle> Vehicle::get_cars_in_lane(const map<int, vector<vector<double>>>
   for (auto it : predictions) {
     vector<vector<double>> v = it.second;
 
-    if (fabs(v[0][0] - lane) < 0.5 && (fabs(v[0][1] - s) < 20)) {
+    if (fabs(v[0][0] - lane) < 0.5 && (fabs(v[0][1] - s) < 40)) {
         cars.emplace_back(v[0][0], v[0][1], v[0][2], 0);
     }
   }
@@ -117,7 +117,7 @@ void Vehicle::configure(double max_speed, int lanes_available, double max_accele
   this->max_acceleration = max_acceleration;
 }
 
-vector<double> Vehicle::state_at(double t) {
+vector<double> Vehicle::state_at(double t) const {
 
   /*
     Predicts state of vehicle in t seconds (assuming constant acceleration)

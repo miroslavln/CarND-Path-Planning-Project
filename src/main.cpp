@@ -7,6 +7,7 @@
 #include "spline.h"
 #include "vehicle.h"
 #include "trajectory.h"
+#include "ptg.h"
 
 using namespace std;
 
@@ -287,8 +288,9 @@ int main() {
                 for (int i = 0; i < 50 - path_size; i++) {
 
                   if (trajectory.is_complete()) {
-                    double horizon = 1;
+                    double horizon = 1.0;
                     map<int, vector<vector<double>>> predictions;
+                    vector<Vehicle> vehicles;
                     for (auto &car:sensor_fusion) {
                       int id = car[0];
                       double x = car[1];
@@ -299,10 +301,11 @@ int main() {
                       double v_d = car[6];
                       double v_speed = sqrt(vx * vx + vy * vy);
                       Vehicle other(get_lane_number(v_d), v_s, v_speed, 0);
+                      vehicles.push_back(other);
                       predictions[id] = other.generate_predictions(10, horizon);
                     }
 
-                    const double desired_speed = 100;
+                    const double desired_speed = 45;
 
                     v = Vehicle(get_lane_number(pos_d), pos_s, speed, 0);
                     v.configure(mph_to_ms(desired_speed), 3, 5);
@@ -320,9 +323,12 @@ int main() {
                     double goal_s = lsva[1];
                     double goal_v = lsva[2];
                     double goal_a = lsva[3];
-
-                    trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
-                                                   {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
+                    PTG ptg;
+                    auto coef = ptg.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0}, {goal_s, goal_v, goal_a},
+                                            {goal_d, 0, 0}, horizon, vehicles);
+                    trajectory.set_coef(get<0>(coef), get<1>(coef), get<2>(coef));
+                    //trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
+                    //                               {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
                   }
 
                   trajectory.follow(0.02);

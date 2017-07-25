@@ -7,6 +7,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/Dense"
 #include "spline.h"
+#include "helpers.h"
 
 using namespace std;
 using namespace tk;
@@ -24,29 +25,31 @@ public:
     void reset(){
         is_running = false;
     }
-    void generate_trajectory(vector<double> s, vector<double> d, vector<double> goal_s, vector<double> goal_d, double T) {
+
+    void set_coef(vector<double> s_coef, vector<double> d_coef, double T){
+      this->s_coef = s_coef;
+      this->d_coef = d_coef;
+
       time = 0;
       end_time = T;
 
       is_running = true;
+    }
 
-      auto s_coeff = JMT(s, goal_s, T);
-      auto d_coeff = JMT(d, goal_d, T);
-
-      spline_s = get_smoothed(s_coeff, s[0], goal_s[0], T);
-      spline_d = get_smoothed(d_coeff, d[0], goal_d[0], T);
+    void generate_trajectory(vector<double> s, vector<double> d, vector<double> goal_s, vector<double> goal_d, double T) {
+      set_coef(JMT(s, goal_s, T), d_coef = JMT(d, goal_d, T), T);
     }
 
     tk::spline get_smoothed(vector<double> coeff, double initial_pos, double end_pos, double T)
     {
-        int intervals = 5;
+        int intervals = 20;
         vector<double> time;
         vector<double> series;
         time.push_back(0.0);
       series.push_back(initial_pos);
         for (int i = 1; i < intervals; i++)
         {   double t = i * T/intervals;
-            double pos = evaluate_function(coeff, t);
+            double pos = evaluate_equation(coeff, t);
             time.push_back(t);
             series.push_back(pos);
         }
@@ -62,8 +65,8 @@ public:
       assert(is_running);
 
       double prev_s = pos_s;
-      pos_s = spline_s(time);
-      pos_d = spline_d(time);
+      pos_s = evaluate_equation(s_coef, time);
+      pos_d = evaluate_equation(d_coef, time);
 
       if (fabs(prev_s - pos_s) > 0.5)
       {
@@ -74,14 +77,6 @@ public:
       {
         is_running = false;
       }
-    }
-
-    double evaluate_function(vector<double> coeff, double t) {
-      double res = coeff[0];
-      for (int i = 1; i < coeff.size(); i++) {
-        res += coeff[i] * pow(t, i);
-      }
-      return res;
     }
 
     bool is_complete(){ return !is_running; }
@@ -140,8 +135,8 @@ private:
     double time;
     double end_time;
     bool is_running;
-    spline spline_s;
-    spline spline_d;
+    vector<double> s_coef;
+    vector<double> d_coef;
 };
 
 

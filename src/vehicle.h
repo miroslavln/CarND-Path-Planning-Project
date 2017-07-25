@@ -59,7 +59,7 @@ public:
 
     void increment(int dt);
 
-    vector<double> state_at(double t);
+    vector<double> state_at(double t) const;
 
     bool collides_with(Vehicle other, double at_time);
 
