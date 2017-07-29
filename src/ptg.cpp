@@ -17,7 +17,7 @@ tuple<vector<double>, vector<double>, double>
 
 tuple<vector<double>, vector<double>, double>
 PTG::choose_best(const vector<double> &goal_s, const vector<double> &goal_d,
-                 double T, const vector<Vehicle> &cars, const vector<tuple<vector<double>,
+                 double T, const map<int, Vehicle>& cars, const vector<tuple<vector<double>,
     vector<double>, double>> &trajectories) {
   int index = -1;
   double min_cost = 999999;
@@ -33,7 +33,7 @@ PTG::choose_best(const vector<double> &goal_s, const vector<double> &goal_d,
 }
 
 double PTG::calculate_cost(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                      vector<double> goal_d, double goal_t, vector<Vehicle> predictions,
+                      vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars,
                       vector<shared_ptr<CostFunction>> cost_functions){
   double cost = 0;
   for (auto &cost_function: cost_functions){

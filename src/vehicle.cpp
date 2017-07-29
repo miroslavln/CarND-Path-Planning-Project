@@ -4,9 +4,9 @@
 /**
  * Initializes Vehicle
  */
-Vehicle::Vehicle(double lane, double s, double v, double a) {
+Vehicle::Vehicle(double d, double s, double v, double a) {
 
-  this->lane = lane;
+  this->d = d;
   this->s = s;
   this->v = v;
   this->a = a;
@@ -17,8 +17,7 @@ Vehicle::Vehicle(double lane, double s, double v, double a) {
 
 Vehicle::~Vehicle() {}
 
-// TODO - Implement this method.
-void Vehicle::update_state(map<int, vector<vector<double>>> predictions) {
+void Vehicle::update_state(const map<int, Vehicle>& env_vehicles) {
   /*
     Updates the "state" of the vehicle by assigning one of the
     following values to 'self.state':
@@ -58,27 +57,29 @@ void Vehicle::update_state(map<int, vector<vector<double>>> predictions) {
     state = "LCR";
   else {
     state = "KL";
-    auto in_front = get_cars_in_front(predictions, this->lane, this->s);
+    
+    int lane = get_lane_number(this->d);
+
+    auto in_front = get_cars_in_front(predictions, lane, this->s);
     auto current_leading = get_leading(this->s, in_front);
 
     if (!current_leading.empty() && current_leading[0][1] - s < 40) {
-
-      if (this->lane < 2) {
-        in_front = get_cars_in_front(predictions, this->lane+1, this->s);
+      if (lane < 2) {
+        in_front = get_cars_in_front(predictions, lane+1, this->s);
         auto left_leading = get_leading(this->s, in_front);
         if (left_leading.empty() || left_leading[0][1] > current_leading[0][1]) {
-          if (!will_collide_with_any(get_cars_in_lane(predictions, this->lane + 1, this->s)))
+          if (!will_collide_with_any(get_cars_in_lane(predictions, lane + 1, this->s)))
           {
             state = "LCL";
             current_leading = left_leading;
         }}
       }
 
-      if (this->lane > 0.9) {
-        in_front = get_cars_in_front(predictions, this->lane-1, this->s);
+      if (lane > 0) {
+        in_front = get_cars_in_front(predictions, lane-1, this->s);
         auto right_leading = get_leading(this->s, in_front);
         if (right_leading.empty() || right_leading[0][1] > current_leading[0][1])
-          if (!will_collide_with_any(get_cars_in_lane(predictions, this->lane - 1, this->s))) {
+          if (!will_collide_with_any(get_cars_in_lane(predictions, lane - 1, this->s))) {
             state = "LCR";
           }
       }
@@ -90,24 +91,24 @@ void Vehicle::update_state(map<int, vector<vector<double>>> predictions) {
 bool Vehicle::will_collide_with_any(const vector<Vehicle> cars){
     bool res = false;
     for (auto& car : cars){
-        res |= will_collide_with(car, 3.0).collision;
+        res |= will_collide_with(car, 10).collision;
     }
   return res;
 }
 
-vector<Vehicle> Vehicle::get_cars_in_lane(const map<int, vector<vector<double>>>& predictions, double lane, double s){
+vector<Vehicle> Vehicle::get_cars_in_lane(const map<int, Vehicle>& env_vehicles, double lane, double s){
   vector<Vehicle> cars;
-  for (auto it : predictions) {
-    vector<vector<double>> v = it.second;
+  for (auto it : env_vehicles) {
+    auto v = it.second;
 
-    if (fabs(v[0][0] - lane) < 0.5 && (fabs(v[0][1] - s) < 40)) {
-        cars.emplace_back(v[0][0], v[0][1], v[0][2], 0);
+    if (v.get_lane_number() == lane && (fabs(v.get_s() - s) < 40)) {
+        cars.emplace_back(v);
     }
   }
   return cars;
 }
 
-void Vehicle::configure(double max_speed, int lanes_available, double max_acceleration) {
+void Vehicle::configure(double max_speed, int lanes_available, double max_acceleration, double horizon) {
   /*
     Called by simulator before simulation begins. Sets various
     parameters which will impact the ego vehicle. 
@@ -115,6 +116,7 @@ void Vehicle::configure(double max_speed, int lanes_available, double max_accele
   target_speed = max_speed;
   this->lanes_available = lanes_available;
   this->max_acceleration = max_acceleration;
+  this->horizon = horizon;
 }
 
 vector<double> Vehicle::state_at(double t) const {
@@ -124,27 +126,24 @@ vector<double> Vehicle::state_at(double t) const {
     */
   double s = this->s + this->v * t + this->a * t * t / 2;
   double v = this->v + this->a * t;
-  return {this->lane, s, v, this->a};
+  return {this->d, s, v, this->a};
 }
 
 bool Vehicle::collides_with(Vehicle other, double at_time) {
 
-  /*
-    Simple collision detection.
-    */
   vector<double> my_state = state_at(at_time);
   vector<double> other_state = other.state_at(at_time);
   return (fabs(my_state[0] - other_state[0]) < 4) && (fabs(my_state[1] - other_state[1]) <= L);
 }
 
-Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon) {
+Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon, double time_step=0.2) {
 
   Vehicle::collider collider_temp{};
   collider_temp.collision = false;
   collider_temp.time = -1;
 
   for (int i = 0; i < horizon + 1; i++) {
-    if (collides_with(other, i)) {
+    if (collides_with(other, i * time_step)) {
       collider_temp.collision = true;
       collider_temp.time = i;
       cout << "Possible collision detected"<<endl;
@@ -155,157 +154,82 @@ Vehicle::collider Vehicle::will_collide_with(Vehicle other, int horizon) {
   return collider_temp;
 }
 
-void Vehicle::realize_state(map<int, vector<vector<double>>> predictions) {
+void Vehicle::realize_state(const map<int, Vehicle>& env_vehicles) {
 
   /*
     Given a state, realize it by adjusting acceleration and lane.
     Note - lane changes happen instantaneously.
     */
   string state = this->state;
-  if (state == "CS") {
-    realize_constant_speed();
-  } else if (state == "KL") {
-    realize_keep_lane(predictions);
+  if (state == "KL") {
+    realize_keep_lane(env_vehicles);
   } else if (state == "LCL") {
-    realize_lane_change(predictions, "L");
+    realize_lane_change(env_vehicles, "L");
   } else if (state == "LCR") {
-    realize_lane_change(predictions, "R");
-  } else if (state == "PLCL") {
-    realize_prep_lane_change(predictions, "L");
-  } else if (state == "PLCR") {
-    realize_prep_lane_change(predictions, "R");
+    realize_lane_change(env_vehicles, "R");
+  }
+}
+
+double Vehicle::get_max_accel_for_lane(const map<int, Vehicle>& env_vehicles, int lane, double s) {
+  double delta_v_til_target = target_speed - v;
+  double max_acc = min(max_acceleration, delta_v_til_target);
+
+  vector<Vehicle> in_front = get_cars_in_front(env_vehicles, lane, s);
+
+  if (!in_front.empty()) {
+    Vehicle leading = get_leading(s, in_front);
+
+    double next_pos = leading.state_at(horizon)[1];
+    double my_next = s + v * horizon;
+    double separation_next = next_pos - my_next;
+    double available_room = separation_next - preferred_buffer;
+
+    cout << "Available room " << available_room << " " << this->v << " " << max_acc << endl;
+    
+    max_acc = min(max_acc, available_room);
+  } else {
+    cout << "No one in front !!!"<<endl;
   }
 
+  return max_acc;
 }
 
-void Vehicle::realize_constant_speed() {
-  a = 0;
-}
+vector<Vehicle> Vehicle::get_cars_in_front(const map<int, Vehicle>& env_vehicles, int lane, double s) {
+  vector<Vehicle> in_front;
+  for (auto it : env_vehicles) {
+    auto v = it.second;
 
-vector<vector<vector<double>>> Vehicle::get_cars_in_front(const map<int, vector<vector<double>>> &predictions,
-                                                          double lane, double s) {
-  vector<vector<vector<double>>> in_front;
-  for (auto it : predictions) {
-    vector<vector<double>> v = it.second;
-
-    if (fabs(v[0][0] - lane) < 0.5 && (v[0][1] > s)) {
+  if (v.get_lane() == lane && (v.get_pos_s() > s)) {
       in_front.push_back(v);
     }
   }
   return in_front;
 }
 
-double Vehicle::get_max_accel_for_lane(map<int, vector<vector<double>>> predictions, double lane, double s) {
-
-  double delta_v_til_target = target_speed - v;
-  double max_acc = min(max_acceleration, delta_v_til_target);
-
-  vector<vector<vector<double>>> in_front = get_cars_in_front(predictions, lane, s);
-
-  if (!in_front.empty()) {
-    vector<vector<double>> leading = get_leading(s, in_front);
-
-    double next_pos = leading[1][1];
-    double my_next = s + this->v;
-    double separation_next = next_pos - my_next;
-    double available_room = separation_next - preferred_buffer;
-    cout << "Available room " << available_room << " " << this->v << " " << max_acc << endl;
-    max_acc = min(max_acc, available_room);
-  } else {
-    cout << "no one in front !!!";
-  }
-
-  return max_acc;
-
-}
-
-vector<vector<double>> Vehicle::get_leading(double s, const vector<vector<vector<double>>> &in_front) const {
+Vehicle Vehicle::get_leading(double s, const vector<Vehicle> &in_front) const {
   double min_s = 10000;
-  vector<vector<double>> leading = {};
+  int index = 0;
 
-  for (auto &car : in_front) {
-    if ((car[0][1] - s) < min_s) {
-      min_s = (car[0][1] - s);
-      leading = car;
+  for (int i = 0; i < in_front.size(); i++) {
+    if ((in_front[i].get_pos_s() - s) < min_s) {
+      min_s = (in_front.get_pos_s() - s);
+      index = i;
     }
   }
-  return leading;
+  return in_front[index];
 }
 
-void Vehicle::realize_keep_lane(map<int, vector<vector<double>>> predictions) {
-  this->a = get_max_accel_for_lane(std::move(predictions), this->lane, this->s);
+void Vehicle::realize_keep_lane(const map<int, Vehicle>& env_vehicles) {
+  this->a = get_max_accel_for_lane(std::move(predictions), get_lane(), this->s);
 }
 
-void Vehicle::realize_lane_change(map<int, vector<vector<double>>> predictions, string direction) {
+void Vehicle::realize_lane_change(map<int, vector<Vehicle>> env_vehicles, string direction) {
   double delta = -1;
   if (direction == "L") {
     delta = 1;
   }
-  this->lane += delta;
-  double lane = this->lane;
-  double s = this->s;
+  int lane = get_lane_number(this->d);
+  lane += delta;
+  this->d = 2.0 + lane * 4;
   this->a = get_max_accel_for_lane(std::move(predictions), lane, s);
 }
-
-void Vehicle::realize_prep_lane_change(map<int, vector<vector<double>>> predictions, string direction) {
-  int delta = -1;
-  if (direction == "L") {
-    delta = 1;
-  }
-  double lane = this->lane + delta;
-
-  vector<vector<vector<double>>> at_behind;
-  for (auto it:predictions) {
-    vector<vector<double>> v = it.second;
-
-    if (fabs(v[0][0] - lane) < 0.5 && (v[0][1] <= this->s)) {
-      at_behind.push_back(v);
-    }
-  }
-  if (!at_behind.empty()) {
-
-    double max_s = -1000;
-    vector<vector<double> > nearest_behind = {};
-    for (auto &car : at_behind) {
-      if ((car[0][1]) > max_s) {
-        max_s = car[0][1];
-        nearest_behind = car;
-      }
-    }
-    double target_vel = nearest_behind[1][1] - nearest_behind[0][1];
-    auto delta_v = this->v - target_vel;
-    double delta_s = this->s - nearest_behind[0][1];
-    if (delta_v != 0) {
-
-      double time = -2 * delta_s / delta_v;
-      double a;
-      if (time == 0) {
-        a = this->a;
-      } else {
-        a = delta_v / time;
-      }
-      if (a > this->max_acceleration) {
-        a = this->max_acceleration;
-      }
-      if (a < -this->max_acceleration) {
-        a = -this->max_acceleration;
-      }
-      this->a = a;
-    } else {
-      double my_min_acc = max(-this->max_acceleration, -delta_s);
-      this->a = my_min_acc;
-    }
-  }
-}
-
-vector<vector<double>> Vehicle::generate_predictions(int horizon, double start_time = 0.0) {
-  vector<vector<double>> predictions;
-  for (int i = 0; i < horizon; i++) {
-    vector<double> check1 = state_at(start_time + i);
-    vector<double> lane_s = {check1[0], check1[1]};
-    predictions.push_back(lane_s);
-  }
-  return predictions;
-
-}
-

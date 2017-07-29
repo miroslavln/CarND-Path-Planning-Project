@@ -26,39 +26,15 @@ public:
         is_running = false;
     }
 
-    void set_coef(vector<double> s_coef, vector<double> d_coef, double T){
+    void set_coef(vector<double> s_coef, vector<double> d_coef, int time_steps){
       this->s_coef = s_coef;
       this->d_coef = d_coef;
 
       time = 0;
-      end_time = T;
+      step = 0;
+      this->time_steps = time_steps;
 
       is_running = true;
-    }
-
-    void generate_trajectory(vector<double> s, vector<double> d, vector<double> goal_s, vector<double> goal_d, double T) {
-      set_coef(JMT(s, goal_s, T), d_coef = JMT(d, goal_d, T), T);
-    }
-
-    tk::spline get_smoothed(vector<double> coeff, double initial_pos, double end_pos, double T)
-    {
-        int intervals = 20;
-        vector<double> time;
-        vector<double> series;
-        time.push_back(0.0);
-      series.push_back(initial_pos);
-        for (int i = 1; i < intervals; i++)
-        {   double t = i * T/intervals;
-            double pos = evaluate_equation(coeff, t);
-            time.push_back(t);
-            series.push_back(pos);
-        }
-
-      time.push_back(T);
-      series.push_back(end_pos);
-        spline res;
-      res.set_points(time, series);
-      return res;
     }
 
     void follow(double dt) {
@@ -73,7 +49,8 @@ public:
         //printf("Speed exceeded %f /n", fabs(pos_s - prev_s));
       }
       time += dt;
-      if (fabs(end_time - time) < 0.5)
+      step += 1;
+      if (time_steps == steps)
       {
         is_running = false;
       }
@@ -81,59 +58,9 @@ public:
 
     bool is_complete(){ return !is_running; }
 
-private:
-    vector<double> JMT(vector< double> start, vector <double> end, double T)
-    {
-      /*
-      Calculate the Jerk Minimizing Trajectory that connects the initial state
-      to the final state in time T.
-
-      INPUTS
-
-      start - the vehicles start location given as a length three array
-          corresponding to initial values of [s, s_dot, s_double_dot]
-
-      end   - the desired end state for vehicle. Like "start" this is a
-          length three array.
-
-      T     - The duration, in seconds, over which this maneuver should occur.
-
-      OUTPUT
-      an array of length 6, each value corresponding to a coefficent in the polynomial
-      s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
-
-      EXAMPLE
-
-      > JMT( [0, 10, 0], [10, 10, 0], 1)
-      [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
-      */
-
-      MatrixXd A = MatrixXd(3, 3);
-      A << T*T*T, T*T*T*T, T*T*T*T*T,
-          3*T*T, 4*T*T*T,5*T*T*T*T,
-          6*T, 12*T*T, 20*T*T*T;
-
-      MatrixXd B = MatrixXd(3,1);
-      B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
-          end[1]-(start[1]+start[2]*T),
-          end[2]-start[2];
-
-      MatrixXd Ai = A.inverse();
-
-      MatrixXd C = Ai*B;
-
-      vector <double> result = {start[0], start[1], .5*start[2]};
-      for(int i = 0; i < C.size(); i++)
-      {
-        result.push_back(C.data()[i]);
-      }
-
-      return result;
-
-    }
-
     double time;
-    double end_time;
+    int step;
+    int time_steps;
     bool is_running;
     vector<double> s_coef;
     vector<double> d_coef;

@@ -150,25 +150,6 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 }
 
-double ms_to_mph(double ms) {
-  return ms * (3600.0 / 1600.0);
-}
-
-double mph_to_ms(double mph) {
-  return mph * 0.44704;
-}
-
-double get_lane_number(double pos_d) {
-  int lane = -10;
-  if (0.0 < pos_d && pos_d < 4.0)
-      lane = 0;
-  else if (4.0 < pos_d && pos_d < 8.0)
-    lane = 1;
-  else if (8.0 < pos_d && pos_d < 12.0)
-    lane = 2;
-  return lane;
-}
-
 int main() {
   uWS::Hub h;
 
@@ -288,9 +269,8 @@ int main() {
                 for (int i = 0; i < 50 - path_size; i++) {
 
                   if (trajectory.is_complete()) {
-                    double horizon = 1.0;
-                    map<int, vector<vector<double>>> predictions;
-                    vector<Vehicle> vehicles;
+                    double horizon = 2.0;
+                    map<int, Vehicle> vehicles;
                     for (auto &car:sensor_fusion) {
                       int id = car[0];
                       double x = car[1];
@@ -300,35 +280,27 @@ int main() {
                       double v_s = car[5];
                       double v_d = car[6];
                       double v_speed = sqrt(vx * vx + vy * vy);
-                      Vehicle other(get_lane_number(v_d), v_s, v_speed, 0);
-                      vehicles.push_back(other);
-                      predictions[id] = other.generate_predictions(10, horizon);
+                      Vehicle other(v_d, v_s, v_speed, 0);
+                      vehicles[id] = other;
                     }
 
                     const double desired_speed = 45;
 
-                    v = Vehicle(get_lane_number(pos_d), pos_s, speed, 0);
-                    v.configure(mph_to_ms(desired_speed), 3, 5);
+                    v = Vehicle(pos_d, pos_s, speed, 0);
+                    v.configure(mph_to_ms(desired_speed), 3, 5, horizon);
 
                     v.update_state(predictions);
                     v.realize_state(predictions);
 
-                    if (fabs(get_lane_number(pos_d) - v.lane)){
-                       horizon = 2.0;
-                    }
-
                     vector<double> lsva = v.state_at(horizon);
-                    double goal_lane = lsva[0];
-                    double goal_d = fmod(goal_lane * 4 + 2, 12);
+                    double goal_d = lstva[0];
                     double goal_s = lsva[1];
                     double goal_v = lsva[2];
                     double goal_a = lsva[3];
                     PTG ptg;
                     auto coef = ptg.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0}, {goal_s, goal_v, goal_a},
                                             {goal_d, 0, 0}, horizon, vehicles);
-                    trajectory.set_coef(get<0>(coef), get<1>(coef), get<2>(coef));
-                    //trajectory.generate_trajectory({pos_s, speed, 0.0}, {pos_d, 0.0, 0.0},
-                    //                               {goal_s, goal_v, goal_a}, {goal_d, 0, 0}, horizon);
+                    trajectory.set_coef(get<0>(coef), get<1>(coef), 1.0);
                   }
 
                   trajectory.follow(0.02);

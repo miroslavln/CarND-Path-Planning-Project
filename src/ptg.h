@@ -23,10 +23,10 @@ public:
 
     tuple<vector<double>, vector<double>, double> generate_trajectory(vector<double> start_s, vector<double> start_d,
                                                                       vector<double> goal_s, vector<double> goal_d,
-                                                                      double T, vector<Vehicle> cars);
+                                                                      double T, const map<int, Vehicle>& cars);
 
     double calculate_cost(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                          vector<double> goal_d, double goal_t, vector<Vehicle> predictions,
+                          vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars,
                           vector<shared_ptr<CostFunction>> cost_functions);
 
     vector<tuple<vector<double>, vector<double>, double>>

@@ -23,9 +23,9 @@ public:
 
     int L = 1;
 
-    int preferred_buffer = 30; // impacts "keep lane" behavior.
+    int preferred_buffer = 10; // impacts "keep lane" behavior.
 
-    double lane;
+    double d;
 
     double s;
 
@@ -51,13 +51,17 @@ public:
     */
     virtual ~Vehicle();
 
-    void update_state(map<int, vector<vector<double>>> predictions);
+    int get_lane(){ return get_lane_number(this->d);};
 
-    void configure(double max_speed, int lanes, double max_acceleration);
+    double get_pos_s() { return this->s};
 
-    string display();
+    vector<double> get_s() { return {this->s, this->v, this->a};};
 
-    void increment(int dt);
+    vector<double> get_d() { return { this->d, 0, 0}; };
+
+    void update_state(const vector<Vehicle>& env_vehicles);
+
+    void configure(double max_speed, int lanes, double max_acceleration, double horizon);
 
     vector<double> state_at(double t) const;
 
@@ -65,28 +69,25 @@ public:
 
     collider will_collide_with(Vehicle other, int horizon);
 
-    void realize_state(map<int, vector<vector<double>>> predictions);
+    void realize_state(const vector<Vehicle>& env_vehicles);
 
     void realize_constant_speed();
 
-    double get_max_accel_for_lane(map<int, vector<vector<double>>> predictions, double lane, double s);
+    double get_max_accel_for_lane(const vector<Vehicle>& env_vehicles, double lane, double s);
 
-    void realize_keep_lane(map<int, vector< vector<double>>> predictions);
+    void realize_keep_lane(const vector<Vehicle>& env_vehicles);
 
-    void realize_lane_change(map<int,vector< vector<double>>> predictions, string direction);
+    void realize_lane_change(const vector<Vehicle>& env_vehicles, string direction);
 
-    void realize_prep_lane_change(map<int,vector< vector<double>>> predictions, string direction);
+    void realize_prep_lane_change(const vector<Vehicle>& env_vehicles, string direction);
 
-    vector<vector<double>> generate_predictions(int horizon, double start_time);
+    vector<Vehicle> get_cars_in_front(const vector<Vehicle>& env_vehicles, int lane, double s);
 
-    vector<vector<vector<double>>> get_cars_in_front( const map<int, vector<vector<double>>>& predictions,
-                                                               double lane, double s);
+    Vehicle get_leading(double s, const vector<Vehicles>& in_front) const;
 
-    vector<vector<double>> get_leading(double s, const vector<vector<vector<double>>> &in_front) const;
+    bool will_collide_with_any(const vector<Vehicle>& cars);
 
-    bool will_collide_with_any(const vector<Vehicle> cars);
-
-    vector<Vehicle> get_cars_in_lane(const map<int, vector<vector<double>>> &predictions, double lane, double s);
+    vector<Vehicle> get_cars_in_lane(const vector<Vehicle>& env_vehicles, double lane, double s);
 };
 
 #endif

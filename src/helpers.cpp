@@ -28,3 +28,22 @@ vector<double> differentiate(vector<double> coeff){
   return new_coef;
 }
 
+double ms_to_mph(double ms) {
+  return ms * (3600.0 / 1600.0);
+}
+
+double mph_to_ms(double mph) {
+  return mph * 0.44704;
+}
+
+int get_lane_number(double pos_d) {
+  int lane = -10;
+  if (0.0 < pos_d && pos_d < 4.0)
+      lane = 0;
+  else if (4.0 < pos_d && pos_d < 8.0)
+    lane = 1;
+  else if (8.0 < pos_d && pos_d < 12.0)
+    lane = 2;
+  return lane;
+}
+

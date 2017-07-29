@@ -1,7 +1,3 @@
-//
-// Created by miro on 7/23/17.
-//
-
 #ifndef PATH_PLANNING_COST_FINCTIONS_H
 #define PATH_PLANNING_COST_FINCTIONS_H
 #include <math.h>
@@ -17,7 +13,7 @@ class CostFunction{
 public:
     double weight = 1;
     virtual double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                            vector<double> goal_d, double goal_t, vector<Vehicle> predictions) = 0;
+                            vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) = 0;
 
 };
 
@@ -26,14 +22,14 @@ public:
     TimeDifferenceCost() { weight = 1.0; }
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override{
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override{
       double t = get<2>(trajectory);
       return logistic(fabs(t - goal_t) / goal_t);
     }
 };
 class SDifferenceCost : public CostFunction{
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override {
 
       vector<double> s = get<0>(trajectory);
       double t = get<2>(trajectory);
@@ -43,7 +39,7 @@ class SDifferenceCost : public CostFunction{
 
 class DDifferenceCost : public CostFunction{
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override {
 
       vector<double> d_coef = get<1>(trajectory);
       double t = get<2>(trajectory);
@@ -68,25 +64,22 @@ public:
     CollisionCost()  { weight = 1000;};
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& vehicles) override {
 
-       double nearest = nearest_to_any(trajectory, predictions);
+       double nearest = nearest_to_any(trajectory, vehicles);
       if (nearest < 2*2)
-      {
         return 1.0;
-      }
       return 0;
     }
 
-    double nearest_to_any(tuple<vector<double>, vector<double>, double> traj, const vector<Vehicle>& vehicles){
+    double nearest_to_any(tuple<vector<double>, vector<double>, double> traj, const map<int, Vehicle>& vehicles){
       double closest = 99999;
       for (auto &v:vehicles){
-        double cur = nearest_approach(traj, v);
+        double cur = nearest_approach(traj, v.second);
         if (closest > cur){
           closest = cur;
         }
       }
-      //cout <<"Closest "<< closest << endl;
       return closest;
     }
 
@@ -102,7 +95,7 @@ public:
         double cur_s = evaluate_equation(s_coef, cur_t);
         double cur_d = evaluate_equation(d_coef, cur_t);
 
-        auto state = v.state_at(cur_t);
+        auto state = v.state_at(cur_t); 
         double target_s = state[1];
         double target_d = state[0] * 4 + 2;
         double dist = sqrt(pow(cur_s - target_s,2) + pow(cur_d - target_d, 2));
@@ -119,7 +112,7 @@ public:
     MaxAccelerationCost(){ weight = 50; };
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override {
 
       auto s = get<0>(trajectory);
       auto d = get<1>(trajectory);
@@ -148,7 +141,7 @@ public:
     TotalAccelerationCost(){ weight = 50; };
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override {
 
       auto s = get<0>(trajectory);
       auto d = get<1>(trajectory);
@@ -176,7 +169,7 @@ public:
     MaxJerkCost() { weight = 60; };
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& cars) override {
 
       auto s = get<0>(trajectory);
       auto d = get<1>(trajectory);
@@ -206,7 +199,7 @@ public:
     MaxSpeedCost() { weight = 100; };
 
     double evaluate(tuple<vector<double>, vector<double>, double> trajectory, vector<double> goal_s,
-                    vector<double> goal_d, double goal_t, vector<Vehicle> predictions) override {
+                    vector<double> goal_d, double goal_t, const map<int, Vehicle>& env_vehicles) override {
 
       auto s = get<0>(trajectory);
       auto d = get<1>(trajectory);
