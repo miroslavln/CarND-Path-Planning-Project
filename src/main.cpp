@@ -139,7 +139,7 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 {
 	int prev_wp = -1;
 
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
+	while((prev_wp < (int)(maps_s.size() - 1) && s > maps_s[prev_wp+1]))
 	{
 		prev_wp++;
 	}
@@ -162,6 +162,26 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 }
 
+struct Vehicle {
+	double vx;
+	double vy;
+	double s;
+	double d;
+};
+
+double get_lane_distance(int lane, double ref_s,  const vector<Vehicle>& vehicles)
+{
+	double distance = 1 << 30;
+	for (int i = 0; i < vehicles.size(); i++) {
+		if (4 * lane < vehicles[i].d && vehicles[i].d < 4 + 4 * lane) {
+			if (vehicles[i].s > ref_s) {
+				distance = min(distance, vehicles[i].s - ref_s);
+			}
+		}
+	}
+	return distance;
+}
+
 int main() {
   uWS::Hub h;
 
@@ -176,6 +196,8 @@ int main() {
   string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
+
+  double max_speed = 49.5;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -240,53 +262,34 @@ int main() {
 
           	json msgJson;
 
+			int prev_size = previous_path_x.size();
+
+			vector<Vehicle> vehicles;
+			for (int i = 0; i < sensor_fusion.size(); i++)
+			{
+				Vehicle v;
+				v.vx = sensor_fusion[i][3];
+				v.vy = sensor_fusion[i][4];
+				v.s = sensor_fusion[i][5];
+				double speed = sqrt(v.vx*v.vx + v.vy*v.vy);
+				v.s += (double)prev_size * 0.02  * speed;
+				v.d = sensor_fusion[i][6];
+				vehicles.push_back(v);
+			}
+
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 			
-			int prev_size = previous_path_x.size();
-			if (prev_size > 0)
-			{
-				car_s = end_path_s;
-			}
 
-			bool too_close = false;
-
-			for (int i = 0; i < sensor_fusion.size(); i++)
-			{
-				float d = sensor_fusion[i][6];
-
-				if (4 * lane < d && d < 4 + 4 * lane)
-				{
-					double vx = sensor_fusion[i][3];
-					double vy = sensor_fusion[i][4];
-					double speed = sqrt(vx*vx + vy*vy);
-					double s = sensor_fusion[i][5];
-
-					s += (double)prev_size * 0.02  * speed;
-					if (s > car_s && s - car_s < 30)
-					{
-						too_close = true;
-
-					}
-				}
-			}
-
-			if (too_close) {
-				ref_velocity -= 0.224;
-			}
-			else if (ref_velocity < 49.5) {
-				ref_velocity += 0.224;
-			}
 			vector<double> ptsx;
 			vector<double> ptsy;
 
 			double ref_x = car_x;
 			double ref_y = car_y;
 			double ref_yaw = deg2rad(car_yaw);
-			
 			double ref_s = car_s;
 
 			if (prev_size < 2)
@@ -307,7 +310,7 @@ int main() {
 				double prev_car_y = previous_path_y[prev_size - 2];
 
 				ref_yaw = atan2(ref_y - prev_car_y, ref_x - prev_car_x);
-				ref_s = getFrenet(ref_x, ref_y, ref_yaw, map_waypoints_x, map_waypoints_y)[0];
+				ref_s = end_path_s;
 
 				ptsx.push_back(prev_car_x);
 				ptsy.push_back(prev_car_y);
@@ -316,9 +319,36 @@ int main() {
 				ptsy.push_back(ref_y);
 			}
 
-			auto next_point0 = getXY(ref_s + 30, 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-			auto next_point1 = getXY(ref_s + 60, 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-			auto next_point2 = getXY(ref_s + 90, 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			double distance = get_lane_distance(lane, ref_s, vehicles);
+			bool too_close =  distance < 30;
+			int new_lane = lane;
+
+			if (too_close) {
+				if (lane < 2 && get_lane_distance(lane + 1, ref_s, vehicles) > distance)
+				{
+					new_lane = lane + 1;
+					too_close = false;
+				}
+
+				if (lane > 0 && get_lane_distance(lane - 1, ref_s, vehicles) > distance)
+				{
+					new_lane = lane - 1;
+					too_close = false;
+				}
+			}
+
+			lane = new_lane;
+
+			if (too_close) {
+				ref_velocity -= 0.224;
+			}
+			else if (ref_velocity < max_speed) {
+				ref_velocity += 0.224;
+			}
+
+			auto next_point0 = getXY(fmod(ref_s + 30, max_s), 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			auto next_point1 = getXY(fmod(ref_s + 60, max_s), 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			auto next_point2 = getXY(fmod(ref_s + 90, max_s), 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
 			ptsx.push_back(next_point0[0]);
 			ptsx.push_back(next_point1[0]);
