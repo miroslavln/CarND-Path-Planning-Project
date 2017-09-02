@@ -200,7 +200,7 @@ int main() {
   }
 
   double lane = 1;
-  double ref_velocity = 49.5;
+  double ref_velocity = 0;
   h.onMessage([&](uWS::WebSocket<uWS::SERVER>* ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -245,6 +245,41 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+			
+			int prev_size = previous_path_x.size();
+			if (prev_size > 0)
+			{
+				car_s = end_path_s;
+			}
+
+			bool too_close = false;
+
+			for (int i = 0; i < sensor_fusion.size(); i++)
+			{
+				float d = sensor_fusion[i][6];
+
+				if (4 * lane < d && d < 4 + 4 * lane)
+				{
+					double vx = sensor_fusion[i][3];
+					double vy = sensor_fusion[i][4];
+					double speed = sqrt(vx*vx + vy*vy);
+					double s = sensor_fusion[i][5];
+
+					s += (double)prev_size * 0.02  * speed;
+					if (s > car_s && s - car_s < 30)
+					{
+						too_close = true;
+
+					}
+				}
+			}
+
+			if (too_close) {
+				ref_velocity -= 0.224;
+			}
+			else if (ref_velocity < 49.5) {
+				ref_velocity += 0.224;
+			}
 			vector<double> ptsx;
 			vector<double> ptsy;
 
@@ -253,7 +288,6 @@ int main() {
 			double ref_yaw = deg2rad(car_yaw);
 			
 			double ref_s = car_s;
-			int prev_size = previous_path_x.size();
 
 			if (prev_size < 2)
 			{
