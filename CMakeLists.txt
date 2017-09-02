@@ -23,4 +23,17 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 add_executable(path_planning ${sources})
 
-target_link_libraries(path_planning z ssl uv uWS)
+if (WIN32)
+    set(VCPKG_INSTALL $ {_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET})
+    message("Using vc_pkg install ${VC_PCKG_INSTALL}")
+    include_directories({VC_PKG_INSTALL}/include)
+    link_directories({VC_PKG_INSTALL}/lib)
+endif()
+
+if (NOT WIN32)
+    target_link_libraries(path_planning z ssl uv uWS)
+else()
+    target_link_libraries(path_planning ssleay32 libuv uWS ws2_32)
+    target_link_libraries(path_planning optimized zlib)
+    target_link_libraries(path_planning debug zlibd)
+endif()
