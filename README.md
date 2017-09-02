@@ -8,8 +8,7 @@ colliding with other vehicles or making uncomfortable moves measured by the car 
  The simulator provides information about the other vehicles speed and positions expressed in freenet coordinates.
  
  #Implementation
- 
- The simulator provides information about the car's freenet coordinates in terms of distance along the track(s) and 
+  The simulator provides information about the car's freenet coordinates in terms of distance along the track(s) and 
  position across the road (d). The car needs to keep driving with a speed that is less than 50mph. This is accomplished
  by providing a path to the simulator that describes the next few positions the car needs to be in the future. 
   The simulator periodically queries the code for the next path. I am providing 50 points for the car to follow. 
